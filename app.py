@@ -215,7 +215,7 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int) ->
         if job.description_summary:
             st.write(job.description_summary)
         if job.parsing_strategy == "heuristic":
-            st.info("Job parsing used the local fallback. Select an LLM provider for richer extraction.")
+            st.info("Job parsing used the local fallback. Add GROQ_API_KEY in Streamlit secrets or .env for richer extraction.")
 
         st.subheader("Portfolio matches")
         for item in portfolio_matches:

@@ -40,6 +40,16 @@ TECH_SKILLS = [
     "nlp",
     "machine learning",
     "prompt engineering",
+    "computer vision",
+    "image recognition",
+    "object detection",
+    "video analysis",
+    "augmented reality",
+    "opencv",
+    "tensorflow",
+    "pytorch",
+    "deep learning",
+    "visual data",
 ]
 
 
@@ -143,8 +153,10 @@ def heuristic_job_summary(raw_job_text: str, *, source_url: str | None = None) -
     lines = [line.strip(" -:\t") for line in text.splitlines() if line.strip()]
 
     role = _extract_by_label(text, ["job title", "role", "position"])
+    if not role:
+        role = _extract_role_from_text(text)
     if not role and lines:
-        role = lines[0][:90]
+        role = _clean_role(lines[0][:90])
 
     company = _extract_by_label(text, ["company", "organization", "employer"])
     if not company:
@@ -180,7 +192,7 @@ def template_email(
     tone: str,
 ) -> str:
     """Deterministic fallback email for demo mode."""
-    strongest = portfolio_matches[:2]
+    strongest = _relevant_portfolio_items(job, portfolio_matches)[:2]
     proof_lines = []
     for item in strongest:
         proof = f"{item.title}: {item.description}"
@@ -189,20 +201,27 @@ def template_email(
         proof_lines.append(proof)
 
     skill_phrase = ", ".join(job.required_skills[:5]) or "the role's core requirements"
-    proof_paragraph = " ".join(proof_lines) or "My portfolio includes relevant Python and AI application work."
+    proof_paragraph = " ".join(proof_lines) or (
+        "My portfolio shows practical Python and AI application work, and I am ready "
+        f"to apply that foundation to {job.role} responsibilities."
+    )
     contact_line = _contact_line(candidate)
+    company_name = job.company.strip()
+    has_company = company_name and company_name.lower() not in {"the company", "unknown", "not specified"}
+    greeting = f"Hi {company_name} team," if has_company else "Hi hiring team,"
+    company_reference = company_name if has_company else "your team"
 
     return clean_text(
         f"""
 Subject: Application for {job.role}
 
-Hi {job.company} team,
+{greeting}
 
 I am reaching out about the {job.role} role. Your need for {skill_phrase} stood out because my recent work has focused on building practical AI tools that connect unstructured inputs, retrieval, and clean user-facing workflows.
 
 {proof_paragraph}
 
-I would be glad to bring the same product-minded engineering approach to {job.company}, especially around reliable AI workflows, clear automation, and maintainable Python systems.
+I would be glad to bring the same product-minded engineering approach to {company_reference}, especially around reliable AI workflows, clear automation, and maintainable Python systems.
 
 Would you be open to a short conversation about how my background could support this role?
 
@@ -220,6 +239,59 @@ def _extract_by_label(text: str, labels: list[str]) -> str:
         if match:
             return match.group(1).strip()
     return ""
+
+
+def _relevant_portfolio_items(
+    job: JobSummary,
+    portfolio_matches: list[RetrievedPortfolioItem],
+) -> list[RetrievedPortfolioItem]:
+    """Keep fallback emails from citing projects with no skill overlap."""
+    skill_terms = [skill.lower() for skill in job.required_skills if len(skill) > 2]
+    if not skill_terms:
+        return portfolio_matches
+
+    relevant = []
+    for item in portfolio_matches:
+        searchable = " ".join(
+            [
+                item.title,
+                item.category,
+                item.skills,
+                item.description,
+                item.outcome,
+                item.content,
+            ]
+        ).lower()
+        if any(term in searchable for term in skill_terms):
+            relevant.append(item)
+    return relevant
+
+
+def _extract_role_from_text(text: str) -> str:
+    patterns = [
+        r"\b(?:looking|hiring|seeking)\s+for\s+(?:a|an|the)?\s*([A-Za-z0-9 /+#.\-]+?\s+(?:Engineer|Developer|Scientist|Analyst|Specialist|Manager|Designer|Architect|Intern))\b",
+        r"\bAs\s+(?:a|an|the)?\s*([A-Za-z0-9 /+#.\-]+?\s+(?:Engineer|Developer|Scientist|Analyst|Specialist|Manager|Designer|Architect|Intern))\b",
+        r"\bjoin\s+(?:our|the)\s+team\s+as\s+(?:a|an|the)?\s*([A-Za-z0-9 /+#.\-]+?\s+(?:Engineer|Developer|Scientist|Analyst|Specialist|Manager|Designer|Architect|Intern))\b",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.I)
+        if match:
+            return _clean_role(match.group(1))
+    return ""
+
+
+def _clean_role(role: str) -> str:
+    role = re.sub(r"\s+", " ", role or "").strip(" .,-:")
+    role = re.sub(
+        r"^(?:talented|experienced|skilled|motivated|strong|great|excellent)\s+",
+        "",
+        role,
+        flags=re.I,
+    )
+    role = re.sub(r"\s+to\s+join.*$", "", role, flags=re.I).strip(" .,-:")
+    if len(role) > 80:
+        return role[:80].rsplit(" ", 1)[0].strip(" .,-:")
+    return role
 
 
 def _extract_experience(text: str) -> str:
