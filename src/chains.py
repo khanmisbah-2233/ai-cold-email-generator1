@@ -198,197 +198,26 @@ def generate_cold_email(
         ]
     )
     chain = prompt | llm | StrOutputParser()
-    email = clean_text(
-        chain.invoke(
-            {
-                "tone": tone,
-                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
-                "job_json": json.dumps(job.model_dump(), indent=2),
-                "portfolio_json": json.dumps(
-                    [item.model_dump() for item in portfolio_for_prompt],
-                    indent=2,
-                ),
-            }
-        )
-    )
-    try:
-        email = polish_professional_email(
-            email=email,
-            job=job,
-            portfolio_matches=portfolio_for_prompt,
-            candidate=candidate,
-            tone=tone,
-            llm=llm,
-        )
-    except Exception:
-        pass
-    if _needs_email_revision(email):
-        email = revise_email(
-            email=email,
-            job=job,
-            portfolio_matches=portfolio_for_prompt,
-            candidate=candidate,
-            tone=tone,
-            llm=llm,
-        )
-    if _needs_email_revision(email):
-        email = write_final_groq_email(
-            job=job,
-            portfolio_matches=portfolio_for_prompt,
-            candidate=candidate,
-            tone=tone,
-            llm=llm,
-        )
+    email = clean_text(chain.invoke(_email_prompt_payload(tone, candidate, job, portfolio_for_prompt)))
+    email = _apply_professional_style(email)
     return _ensure_email_structure(email, job=job, candidate=candidate)
 
 
-def polish_professional_email(
-    *,
-    email: str,
+def _email_prompt_payload(
+    tone: str,
+    candidate: CandidateProfile,
     job: JobSummary,
     portfolio_matches: list[RetrievedPortfolioItem],
-    candidate: CandidateProfile,
-    tone: str,
-    llm,
-) -> str:
-    """Always polish Groq drafts into a professional application email."""
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You are a professional job-application editor. Rewrite the draft into a polished, "
-                "formal cold email that is ready to send to a hiring team. Keep it concise, confident, "
-                "specific to the role, and grounded in the candidate profile and portfolio evidence. "
-                "Do not use casual language, exaggerated claims, or weak phrases such as strong foundation, "
-                "passion for developing innovative solutions, confident in my ability, transferable skills, "
-                "or learn and apply new concepts quickly. Do not invent facts. "
-                "Return only the final email with this structure: Subject, greeting, three concise paragraphs, "
-                "Best, candidate name, contact details.",
-            ),
-            (
-                "human",
-                "Tone: {tone}\n\n"
-                "Candidate profile:\n{candidate_json}\n\n"
-                "Job summary:\n{job_json}\n\n"
-                "Portfolio evidence:\n{portfolio_json}\n\n"
-                "Draft email:\n{email}\n\n"
-                "Rewrite it as a professional final email.",
-            ),
-        ]
-    )
-    chain = prompt | llm | StrOutputParser()
-    return clean_text(
-        chain.invoke(
-            {
-                "tone": tone,
-                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
-                "job_json": json.dumps(job.model_dump(), indent=2),
-                "portfolio_json": json.dumps(
-                    [item.model_dump() for item in portfolio_matches],
-                    indent=2,
-                ),
-                "email": email,
-            }
-        )
-    )
-
-
-def revise_email(
-    *,
-    email: str,
-    job: JobSummary,
-    portfolio_matches: list[RetrievedPortfolioItem],
-    candidate: CandidateProfile,
-    tone: str,
-    llm,
-) -> str:
-    """Ask the LLM to polish weak or hesitant generated drafts."""
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You rewrite job-application cold emails into a confident professional version. "
-                "Remove hesitant or apologetic language. Do not invent facts. "
-                "Keep the same exact format: Subject, greeting, 3 concise paragraphs, signoff, contact details. "
-                "Never use these phrases: although my background, my skills can be adapted, "
-                "I may not have, while I do not have, transferable skills, strong foundation, "
-                "passion for developing innovative solutions, confident in my ability, "
-                "learn and apply new concepts quickly.",
-            ),
-            (
-                "human",
-                "Tone: {tone}\n\n"
-                "Job summary:\n{job_json}\n\n"
-                "Candidate profile:\n{candidate_json}\n\n"
-                "Relevant portfolio evidence:\n{portfolio_json}\n\n"
-                "Draft to improve:\n{email}\n\n"
-                "Return only the improved email.",
-            ),
-        ]
-    )
-    chain = prompt | llm | StrOutputParser()
-    return clean_text(
-        chain.invoke(
-            {
-                "tone": tone,
-                "job_json": json.dumps(job.model_dump(), indent=2),
-                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
-                "portfolio_json": json.dumps(
-                    [item.model_dump() for item in portfolio_matches],
-                    indent=2,
-                ),
-                "email": email,
-            }
-        )
-    )
-
-
-def write_final_groq_email(
-    *,
-    job: JobSummary,
-    portfolio_matches: list[RetrievedPortfolioItem],
-    candidate: CandidateProfile,
-    tone: str,
-    llm,
-) -> str:
-    """Create a fresh Groq email when a previous Groq draft was too generic."""
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "Write a fresh, polished job-application email. This is the final version shown to a user, "
-                "so it must be professional, specific, and confident. Do not apologize for gaps. "
-                "Do not use generic motivational phrases. Do not use these exact phrases: "
-                "strong foundation, passion for developing innovative solutions, confident in my ability, "
-                "transferable skills, learn and apply new concepts quickly. "
-                "Use the candidate's actual project evidence when relevant. "
-                "Return only the email in this structure: Subject line, greeting, three short paragraphs, "
-                "Best, candidate name, contact details.",
-            ),
-            (
-                "human",
-                "Tone: {tone}\n\n"
-                "Candidate profile:\n{candidate_json}\n\n"
-                "Job summary:\n{job_json}\n\n"
-                "Portfolio evidence:\n{portfolio_json}\n\n"
-                "Write the final email now.",
-            ),
-        ]
-    )
-    chain = prompt | llm | StrOutputParser()
-    return clean_text(
-        chain.invoke(
-            {
-                "tone": tone,
-                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
-                "job_json": json.dumps(job.model_dump(), indent=2),
-                "portfolio_json": json.dumps(
-                    [item.model_dump() for item in portfolio_matches],
-                    indent=2,
-                ),
-            }
-        )
-    )
+) -> dict[str, str]:
+    return {
+        "tone": tone,
+        "candidate_json": json.dumps(candidate.model_dump(), indent=2),
+        "job_json": json.dumps(job.model_dump(), indent=2),
+        "portfolio_json": json.dumps(
+            [item.model_dump() for item in portfolio_matches],
+            indent=2,
+        ),
+    }
 
 
 def heuristic_job_summary(raw_job_text: str, *, source_url: str | None = None) -> JobSummary:
@@ -529,6 +358,60 @@ def _needs_email_revision(email: str) -> bool:
         return True
     required_markers = ["subject:", "hi ", "best,"]
     return not all(marker in lowered for marker in required_markers)
+
+
+def _apply_professional_style(email: str) -> str:
+    """Polish common weak LLM phrasing without replacing the Groq-written email."""
+    text = clean_text(email)
+    replacements = [
+        (
+            r"\bI am excited to apply\b",
+            "I am writing to apply",
+        ),
+        (
+            r"\bwhere I can utilize my skills\b",
+            "where I can apply my experience",
+        ),
+        (
+            r"\bWith a strong foundation in ([^.]+?), I am well-equipped to\b",
+            r"My experience in \1 has prepared me to",
+        ),
+        (
+            r"\bWith a strong foundation in ([^.]+?), I am confident in my ability to\b",
+            r"My experience in \1 has prepared me to",
+        ),
+        (
+            r"\bWith a strong background in ([^.]+?), I am well-equipped to\b",
+            r"My experience in \1 has prepared me to",
+        ),
+        (
+            r"\bto drive innovation\b",
+            "to contribute to the team's technical goals",
+        ),
+        (
+            r"\bpushing the boundaries of\b",
+            "building reliable solutions for",
+        ),
+        (
+            r"\bI am eager to bring\b",
+            "I would welcome the opportunity to bring",
+        ),
+        (
+            r"\bI am eager to leverage my transferable skills\b",
+            "I am prepared to apply my relevant experience",
+        ),
+        (
+            r"\bmy skills can be adapted to contribute to\b",
+            "my experience can support",
+        ),
+        (
+            r"\blearn and apply new concepts quickly\b",
+            "deliver reliable, maintainable solutions",
+        ),
+    ]
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text, flags=re.I)
+    return clean_text(text)
 
 
 def _ensure_email_structure(email: str, *, job: JobSummary, candidate: CandidateProfile) -> str:

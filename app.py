@@ -297,8 +297,16 @@ def render_groq_setup_error() -> None:
 def render_groq_runtime_error(error: Exception) -> None:
     st.error("Groq is configured, but the Groq request failed before a professional email could be generated.")
     st.info("Check that the Streamlit Secret key is valid, the model name is correct, and then reboot the app.")
-    with st.expander("Technical detail", expanded=False):
-        st.code(str(error))
+    st.warning(f"Reason from Groq/LangChain: {sanitize_error_message(error)}")
+    with st.expander("Technical detail", expanded=True):
+        st.code(sanitize_error_message(error))
+
+
+def sanitize_error_message(error: Exception) -> str:
+    message = str(error) or error.__class__.__name__
+    message = re.sub(r"gsk_[A-Za-z0-9_\-]+", "gsk_***hidden***", message)
+    message = re.sub(r"Bearer\s+[A-Za-z0-9._\-]+", "Bearer ***hidden***", message, flags=re.I)
+    return message[:1500]
 
 
 def resolve_llm(settings: dict[str, object]):

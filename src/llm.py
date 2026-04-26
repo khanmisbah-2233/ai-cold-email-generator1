@@ -13,6 +13,7 @@ def create_chat_model(
     model_name: str,
     api_key: str | None = None,
     temperature: float = 0.25,
+    max_tokens: int = 900,
     base_url: str | None = None,
 ):
     """Create a LangChain chat model for the selected provider."""
@@ -24,6 +25,13 @@ def create_chat_model(
             raise LLMConfigurationError("Groq is selected, but GROQ_API_KEY is missing.")
         from langchain_groq import ChatGroq
 
-        return ChatGroq(model=model_name, temperature=temperature, api_key=api_key)
+        return ChatGroq(
+            model=model_name,
+            temperature=temperature,
+            api_key=api_key,
+            timeout=60,
+            max_retries=2,
+            max_tokens=max_tokens,
+        )
 
     raise LLMConfigurationError(f"Unsupported LLM provider: {provider}")
