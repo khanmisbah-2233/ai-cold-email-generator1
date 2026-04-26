@@ -74,6 +74,8 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ```
 
+The local config uses `server.headless = false`, so `streamlit run app.py` should open the browser automatically. If the browser does not open, manually visit `http://localhost:8501`.
+
 ## Streamlit Cloud Deployment
 
 In Streamlit Cloud, open **App settings**, then **Secrets**, and add:
@@ -85,7 +87,7 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 Use your real Groq key in Streamlit secrets. Do not commit real API keys to GitHub.
 
-The app is configured with `server.headless = true` and `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
+The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
 
 ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The ChromaDB/OpenTelemetry/protobuf versions are pinned in `requirements.txt` so cloud and local builds use the same compatible stack.
 

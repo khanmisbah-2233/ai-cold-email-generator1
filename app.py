@@ -54,6 +54,11 @@ def main() -> None:
     with st.status("Preparing generation workflow...", expanded=True) as status:
         st.write("Creating LangChain chat model")
         llm = resolve_llm(settings)
+        groq_active = llm is not None
+        if groq_active:
+            st.write("Groq connected")
+        else:
+            st.write("Groq unavailable; using local fallback")
 
         st.write("Creating ChromaDB embedding function")
         embedding_function = resolve_embeddings(settings)
@@ -103,6 +108,7 @@ def main() -> None:
         portfolio_matches=portfolio_matches,
         email=email,
         indexed_count=indexed_count,
+        groq_active=groq_active,
     )
 
 
@@ -193,7 +199,7 @@ def render_job_input() -> tuple[str, str | None, bool]:
     return raw_job_text, source_url, submitted
 
 
-def render_results(*, job, portfolio_matches, email: str, indexed_count: int) -> None:
+def render_results(*, job, portfolio_matches, email: str, indexed_count: int, groq_active: bool) -> None:
     st.divider()
 
     metric_a, metric_b, metric_c, metric_d = st.columns(4)
@@ -232,6 +238,10 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int) ->
 
     with right:
         st.subheader("Generated email")
+        if groq_active:
+            st.success("Generated with Groq")
+        else:
+            st.info("Generated with local fallback. Add GROQ_API_KEY in Streamlit secrets or .env for Groq output.")
         st.text_area("Email draft", value=email, height=520)
         st.download_button(
             "Download email",
