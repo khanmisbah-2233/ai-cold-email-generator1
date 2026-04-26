@@ -211,6 +211,17 @@ def generate_cold_email(
             }
         )
     )
+    try:
+        email = polish_professional_email(
+            email=email,
+            job=job,
+            portfolio_matches=portfolio_for_prompt,
+            candidate=candidate,
+            tone=tone,
+            llm=llm,
+        )
+    except Exception:
+        pass
     if _needs_email_revision(email):
         email = revise_email(
             email=email,
@@ -229,6 +240,57 @@ def generate_cold_email(
             llm=llm,
         )
     return _ensure_email_structure(email, job=job, candidate=candidate)
+
+
+def polish_professional_email(
+    *,
+    email: str,
+    job: JobSummary,
+    portfolio_matches: list[RetrievedPortfolioItem],
+    candidate: CandidateProfile,
+    tone: str,
+    llm,
+) -> str:
+    """Always polish Groq drafts into a professional application email."""
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a professional job-application editor. Rewrite the draft into a polished, "
+                "formal cold email that is ready to send to a hiring team. Keep it concise, confident, "
+                "specific to the role, and grounded in the candidate profile and portfolio evidence. "
+                "Do not use casual language, exaggerated claims, or weak phrases such as strong foundation, "
+                "passion for developing innovative solutions, confident in my ability, transferable skills, "
+                "or learn and apply new concepts quickly. Do not invent facts. "
+                "Return only the final email with this structure: Subject, greeting, three concise paragraphs, "
+                "Best, candidate name, contact details.",
+            ),
+            (
+                "human",
+                "Tone: {tone}\n\n"
+                "Candidate profile:\n{candidate_json}\n\n"
+                "Job summary:\n{job_json}\n\n"
+                "Portfolio evidence:\n{portfolio_json}\n\n"
+                "Draft email:\n{email}\n\n"
+                "Rewrite it as a professional final email.",
+            ),
+        ]
+    )
+    chain = prompt | llm | StrOutputParser()
+    return clean_text(
+        chain.invoke(
+            {
+                "tone": tone,
+                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
+                "job_json": json.dumps(job.model_dump(), indent=2),
+                "portfolio_json": json.dumps(
+                    [item.model_dump() for item in portfolio_matches],
+                    indent=2,
+                ),
+                "email": email,
+            }
+        )
+    )
 
 
 def revise_email(
@@ -400,7 +462,7 @@ Subject: Application for {job.role}
 
 {greeting}
 
-I am excited to apply for the {job.role} role. The focus on {skill_phrase} aligns with my work building practical AI tools, structured data workflows, and clean user-facing applications.
+I am writing to apply for the {job.role} role. The focus on {skill_phrase} aligns with my work building practical AI tools, structured data workflows, and clean user-facing applications.
 
 {proof_paragraph}
 
