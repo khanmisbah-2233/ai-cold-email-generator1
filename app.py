@@ -245,7 +245,7 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int, gr
             st.write("**Preferred skills:** " + ", ".join(job.preferred_skills))
         if job.description_summary:
             st.write(job.description_summary)
-        if job.parsing_strategy == "heuristic":
+        if job.parsing_strategy == "heuristic" and not groq_active:
             st.info("Job parsing used the local fallback. Add GROQ_API_KEY in Streamlit secrets or .env for richer extraction.")
 
         st.subheader("Portfolio matches")

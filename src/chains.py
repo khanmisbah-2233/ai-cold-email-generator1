@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from json import JSONDecodeError
 
 from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -89,6 +90,33 @@ def parse_job_description(raw_job_text: str, llm=None, *, source_url: str | None
                 "format_instructions": parser.get_format_instructions(),
             }
         )
+        result.source_url = source_url
+        result.parsing_strategy = "llm"
+        return result
+    except Exception:
+        return parse_job_description_json(raw_job_text, llm, source_url=source_url)
+
+
+def parse_job_description_json(raw_job_text: str, llm, *, source_url: str | None = None) -> JobSummary:
+    """Fallback LLM parser that is tolerant of non-Pydantic JSON responses."""
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Extract a job post into strict JSON. Return only valid JSON with these keys: "
+                "role, company, location, experience_level, required_skills, preferred_skills, "
+                "responsibilities, description_summary. Use arrays for skill and responsibility fields. "
+                "Use 'the company' or 'Not specified' when values are missing.",
+            ),
+            ("human", "{job_text}"),
+        ]
+    )
+    chain = prompt | llm | StrOutputParser()
+
+    try:
+        response = chain.invoke({"job_text": raw_job_text})
+        payload = _extract_json_object(response)
+        result = JobSummary.model_validate(payload)
         result.source_url = source_url
         result.parsing_strategy = "llm"
         return result
@@ -255,6 +283,17 @@ def _extract_by_label(text: str, labels: list[str]) -> str:
         if match:
             return match.group(1).strip()
     return ""
+
+
+def _extract_json_object(value: str) -> dict:
+    value = (value or "").strip()
+    try:
+        return json.loads(value)
+    except JSONDecodeError:
+        match = re.search(r"\{.*\}", value, flags=re.S)
+        if not match:
+            raise
+        return json.loads(match.group(0))
 
 
 def _relevant_portfolio_items(
