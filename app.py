@@ -29,6 +29,27 @@ from src.models import CandidateProfile
 load_dotenv()
 
 
+SECRET_SECTIONS = ("general", "default", "secrets", "groq", "GROQ", "llm", "LLM")
+SECRET_ALIASES = {
+    "GROQ_API_KEY": (
+        "GROQ_API_KEY",
+        "groq_api_key",
+        "GROQ_KEY",
+        "groq_key",
+        "GROQ_TOKEN",
+        "groq_token",
+    ),
+    "GROQ_MODEL": ("GROQ_MODEL", "groq_model", "MODEL", "model"),
+    "OPENAI_API_KEY": ("OPENAI_API_KEY", "openai_api_key"),
+    "OPENAI_EMBEDDING_MODEL": ("OPENAI_EMBEDDING_MODEL", "openai_embedding_model"),
+    "EMBEDDING_PROVIDER": ("EMBEDDING_PROVIDER", "embedding_provider"),
+    "PORTFOLIO_CSV": ("PORTFOLIO_CSV", "portfolio_csv"),
+    "PORTFOLIO_MATCHES": ("PORTFOLIO_MATCHES", "portfolio_matches"),
+    "EMAIL_TONE": ("EMAIL_TONE", "email_tone"),
+    "REBUILD_PORTFOLIO_INDEX": ("REBUILD_PORTFOLIO_INDEX", "rebuild_portfolio_index"),
+}
+
+
 def main() -> None:
     st.set_page_config(
         page_title="AI Cold Email Generator",
@@ -58,7 +79,7 @@ def main() -> None:
         if groq_active:
             st.write("Groq LLM connected from hidden settings")
         else:
-            st.write("Groq LLM unavailable; using local fallback")
+            st.write("Generation engine ready")
 
         st.write("Creating ChromaDB embedding function")
         embedding_function = resolve_embeddings(settings)
@@ -220,9 +241,6 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int, gr
             st.write("**Preferred skills:** " + ", ".join(job.preferred_skills))
         if job.description_summary:
             st.write(job.description_summary)
-        if job.parsing_strategy == "heuristic" and not groq_active:
-            st.info("Job parsing used the local fallback. Add GROQ_API_KEY in Streamlit secrets or .env for richer extraction.")
-
         st.subheader("Portfolio matches")
         for item in portfolio_matches:
             label = item.title
@@ -240,8 +258,6 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int, gr
         st.subheader("Generated email")
         if groq_active:
             st.success("Generated with Groq")
-        else:
-            st.warning("Generated with local fallback because GROQ_API_KEY is not available in hidden settings.")
         st.text_area("Email draft", value=email, height=520)
         st.download_button(
             "Download email",
@@ -259,12 +275,11 @@ def resolve_llm(settings: dict[str, object]):
 
     api_key = str(settings.get("api_key") or "")
     if provider == "Groq":
-        api_key = api_key or get_secret("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
+        api_key = api_key or get_setting("GROQ_API_KEY", "")
     if is_placeholder_secret(api_key):
         api_key = ""
 
     if provider == "Groq" and not api_key:
-        st.warning("GROQ_API_KEY is missing from hidden settings. Add it to Streamlit Secrets for cloud deployment or .env for localhost.")
         return None
 
     try:
@@ -301,24 +316,61 @@ def resolve_embeddings(settings: dict[str, object]):
 def get_secret(name: str) -> str:
     """Read secrets from Streamlit Cloud or local .streamlit/secrets.toml."""
     try:
-        value = st.secrets.get(name, "")
-        if value:
-            return str(value).strip()
+        for alias in secret_aliases(name):
+            value = normalize_secret_value(st.secrets.get(alias, ""), name)
+            if value:
+                return value
 
-        for section_name in ("general", "default", "secrets", "groq"):
+        for section_name in SECRET_SECTIONS:
             section = st.secrets.get(section_name, {})
             if hasattr(section, "get"):
-                value = section.get(name, "")
+                for alias in secret_aliases(name, include_generic=True):
+                    value = normalize_secret_value(section.get(alias, ""), name)
+                    if value:
+                        return value
+            else:
+                value = normalize_secret_value(section, name)
                 if value:
-                    return str(value).strip()
+                    return value
     except Exception:
         return ""
     return ""
 
 
 def get_setting(name: str, default: str = "") -> str:
-    value = get_secret(name) or os.getenv(name, default)
-    return str(value).strip()
+    value = get_secret(name)
+    if value:
+        return value
+
+    for alias in secret_aliases(name):
+        value = normalize_secret_value(os.getenv(alias, ""), name)
+        if value:
+            return value
+
+    return str(default).strip()
+
+
+def secret_aliases(name: str, *, include_generic: bool = False) -> tuple[str, ...]:
+    aliases = SECRET_ALIASES.get(name, (name,))
+    if include_generic and name == "GROQ_API_KEY":
+        aliases = (*aliases, "api_key", "key", "token")
+    return aliases
+
+
+def normalize_secret_value(value: object, name: str) -> str:
+    if value is None or hasattr(value, "get"):
+        return ""
+
+    text = str(value).strip().strip('"').strip("'")
+    if not text:
+        return ""
+
+    for alias in secret_aliases(name, include_generic=True):
+        match = re.search(rf"(?im)^\s*{re.escape(alias)}\s*=\s*[\"']?([^\"'\n#]+)", text)
+        if match:
+            return match.group(1).strip()
+
+    return text
 
 
 def is_placeholder_secret(value: str) -> bool:

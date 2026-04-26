@@ -97,8 +97,8 @@ The app also supports this nested format if you prefer sections:
 
 ```toml
 [groq]
-GROQ_API_KEY = "your_groq_api_key_here"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+api_key = "your_groq_api_key_here"
+model = "llama-3.3-70b-versatile"
 ```
 
 The app reads Groq credentials silently from hidden configuration only:
@@ -107,6 +107,8 @@ The app reads Groq credentials silently from hidden configuration only:
 - Streamlit Cloud: **App settings** -> **Secrets**
 
 The app does not display or ask for the Groq key in the UI. If no hidden key is configured, it uses the local fallback so the interface can still be tested.
+
+After saving Streamlit Cloud secrets, click **Reboot app** or **Redeploy**. Streamlit Cloud cannot read the `.env` file from your computer.
 
 The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt. Streamlit Cloud supplies its own headless runtime settings during deployment.
 
