@@ -53,6 +53,15 @@ TECH_SKILLS = [
     "visual data",
 ]
 
+WEAK_EMAIL_PHRASES = [
+    "although my background",
+    "i am eager to leverage my transferable skills",
+    "my skills can be adapted",
+    "learn and apply new concepts quickly",
+    "i may not have",
+    "while i do not have",
+]
+
 
 def parse_job_description(raw_job_text: str, llm=None, *, source_url: str | None = None) -> JobSummary:
     """Parse a job description with LangChain, falling back to heuristics."""
@@ -146,17 +155,22 @@ def generate_cold_email(
         [
             (
                 "system",
-                "You are a senior career outreach writer. Write polished, professional cold emails "
-                "for job applications across any industry or role. Use the supplied job summary, "
-                "candidate profile, and portfolio evidence. If portfolio evidence is weak or absent, "
-                "write a credible transferable-skills pitch instead of forcing unrelated projects. "
+                "You are a senior career outreach writer for professional job applications. "
+                "Write confident, polished cold emails across any industry or role. "
+                "Ground the email in the supplied job summary, candidate profile, and relevant portfolio evidence. "
+                "If portfolio evidence is adjacent rather than exact, frame it positively as related experience; "
+                "do not apologize for gaps or sound underqualified. "
+                "Never use weak phrases such as 'although my background', 'my skills can be adapted', "
+                "'I may not have', or 'learn and apply new concepts quickly'. "
                 "Do not invent employers, degrees, metrics, certifications, project results, or personal history. "
                 "Never mention that you were given JSON, a job summary, or portfolio evidence. "
-                "Use a human, confident, concise voice. Keep the email between 140 and 220 words. "
+                "Use specific language from the job post, but avoid copying long sentences from it. "
+                "Include one or two strongest proof points only when they are relevant. "
+                "Use a human, confident, concise voice. Keep the email between 150 and 230 words. "
                 "Return exactly this format:\n\n"
-                "Subject: <specific subject line>\n\n"
+                "Subject: Application for <role>\n\n"
                 "Hi <company team or hiring team>,\n\n"
-                "<email body>\n\n"
+                "<3 concise paragraphs: fit for role, relevant evidence, call to discuss>\n\n"
                 "Best,\n"
                 "<candidate name>\n"
                 "<available contact details>",
@@ -170,12 +184,13 @@ def generate_cold_email(
                 "Write a complete professional email for this exact job. "
                 "If the company name is missing, address it to the hiring team. "
                 "If the candidate's target title differs from the job title, prioritize the job title. "
+                "Make the candidate sound qualified, direct, and professional. "
                 "Include a clear call to discuss the role.",
             ),
         ]
     )
     chain = prompt | llm | StrOutputParser()
-    return clean_text(
+    email = clean_text(
         chain.invoke(
             {
                 "tone": tone,
@@ -185,6 +200,64 @@ def generate_cold_email(
                     [item.model_dump() for item in portfolio_for_prompt],
                     indent=2,
                 ),
+            }
+        )
+    )
+    if _needs_email_revision(email):
+        email = revise_email(
+            email=email,
+            job=job,
+            portfolio_matches=portfolio_for_prompt,
+            candidate=candidate,
+            tone=tone,
+            llm=llm,
+        )
+    return email
+
+
+def revise_email(
+    *,
+    email: str,
+    job: JobSummary,
+    portfolio_matches: list[RetrievedPortfolioItem],
+    candidate: CandidateProfile,
+    tone: str,
+    llm,
+) -> str:
+    """Ask the LLM to polish weak or hesitant generated drafts."""
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You rewrite job-application cold emails into a confident professional version. "
+                "Remove hesitant or apologetic language. Do not invent facts. "
+                "Keep the same exact format: Subject, greeting, 3 concise paragraphs, signoff, contact details. "
+                "Never use these phrases: although my background, my skills can be adapted, "
+                "I may not have, while I do not have, learn and apply new concepts quickly.",
+            ),
+            (
+                "human",
+                "Tone: {tone}\n\n"
+                "Job summary:\n{job_json}\n\n"
+                "Candidate profile:\n{candidate_json}\n\n"
+                "Relevant portfolio evidence:\n{portfolio_json}\n\n"
+                "Draft to improve:\n{email}\n\n"
+                "Return only the improved email.",
+            ),
+        ]
+    )
+    chain = prompt | llm | StrOutputParser()
+    return clean_text(
+        chain.invoke(
+            {
+                "tone": tone,
+                "job_json": json.dumps(job.model_dump(), indent=2),
+                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
+                "portfolio_json": json.dumps(
+                    [item.model_dump() for item in portfolio_matches],
+                    indent=2,
+                ),
+                "email": email,
             }
         )
     )
@@ -246,8 +319,8 @@ def template_email(
 
     skill_phrase = ", ".join(job.required_skills[:5]) or "the role's core requirements"
     proof_paragraph = " ".join(proof_lines) or (
-        "My portfolio shows practical Python and AI application work, and I am ready "
-        f"to apply that foundation to {job.role} responsibilities."
+        f"My portfolio shows practical Python and AI application work relevant to {job.role} responsibilities, "
+        "including structured data workflows, reliable automation, and user-focused product delivery."
     )
     contact_line = _contact_line(candidate)
     company_name = job.company.strip()
@@ -261,13 +334,13 @@ Subject: Application for {job.role}
 
 {greeting}
 
-I am reaching out about the {job.role} role. Your need for {skill_phrase} stood out because my recent work has focused on building practical AI tools that connect unstructured inputs, retrieval, and clean user-facing workflows.
+I am excited to apply for the {job.role} role. The focus on {skill_phrase} aligns with my work building practical AI tools, structured data workflows, and clean user-facing applications.
 
 {proof_paragraph}
 
-I would be glad to bring the same product-minded engineering approach to {company_reference}, especially around reliable AI workflows, clear automation, and maintainable Python systems.
+I would be glad to bring the same product-minded engineering approach to {company_reference}, especially around reliable systems, clear automation, and maintainable Python development.
 
-Would you be open to a short conversation about how my background could support this role?
+Would you be open to a short conversation about how my experience can support this role?
 
 Best,
 {candidate.name}
@@ -320,6 +393,11 @@ def _relevant_portfolio_items(
         if any(term in searchable for term in skill_terms):
             relevant.append(item)
     return relevant
+
+
+def _needs_email_revision(email: str) -> bool:
+    lowered = email.lower()
+    return any(phrase in lowered for phrase in WEAK_EMAIL_PHRASES)
 
 
 def _extract_role_from_text(text: str) -> str:
