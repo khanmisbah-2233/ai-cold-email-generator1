@@ -5,9 +5,17 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+
+if sys.platform.startswith("linux"):
+    try:
+        __import__("pysqlite3")
+        sys.modules["sqlite3"] = sys.modules.pop("pysqlite3")
+    except ImportError:
+        pass
 
 import chromadb
 import pandas as pd
