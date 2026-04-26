@@ -31,7 +31,8 @@ The LLM layer uses Groq through LangChain. The default model is `llama-3.3-70b-v
 |-- .env.example              # Environment variable template
 |-- requirements.txt          # Python dependencies
 `-- .streamlit/
-    `-- config.toml           # Streamlit theme and server defaults
+    |-- config.toml           # Streamlit theme and server defaults
+    `-- secrets.toml.example  # Streamlit Cloud secrets template
 ```
 
 ## Setup
@@ -100,9 +101,14 @@ GROQ_API_KEY = "your_groq_api_key_here"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 ```
 
-The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt. Streamlit Cloud supplies its own headless runtime settings during deployment.
+The app reads Groq credentials silently from hidden configuration only:
 
-If Streamlit secrets are not configured, the app shows a secure **Connect Groq** password field. That key is used only for the active browser session.
+- Localhost: `.env` or `.streamlit/secrets.toml`
+- Streamlit Cloud: **App settings** -> **Secrets**
+
+The app does not display or ask for the Groq key in the UI. If no hidden key is configured, it uses the local fallback so the interface can still be tested.
+
+The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt. Streamlit Cloud supplies its own headless runtime settings during deployment.
 
 ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The ChromaDB/OpenTelemetry/protobuf versions are pinned in `requirements.txt` so cloud and local builds use the same compatible stack.
 

@@ -41,7 +41,6 @@ def main() -> None:
     st.title("AI Cold Email Generator")
 
     settings = build_runtime_settings()
-    settings = render_groq_connection(settings)
     candidate = render_candidate_profile()
     raw_job_text, source_url, submitted = render_job_input()
 
@@ -57,9 +56,9 @@ def main() -> None:
         llm = resolve_llm(settings)
         groq_active = llm is not None
         if groq_active:
-            st.write("Groq connected")
+            st.write("Groq LLM connected from hidden settings")
         else:
-            st.write("Groq unavailable; using local fallback")
+            st.write("Groq LLM unavailable; using local fallback")
 
         st.write("Creating ChromaDB embedding function")
         embedding_function = resolve_embeddings(settings)
@@ -135,30 +134,6 @@ def build_runtime_settings() -> dict[str, object]:
         "tone": get_setting("EMAIL_TONE", "Professional"),
         "rebuild_index": env_flag("REBUILD_PORTFOLIO_INDEX"),
     }
-
-
-def render_groq_connection(settings: dict[str, object]) -> dict[str, object]:
-    """Let users securely provide a Groq key when deployment secrets are absent."""
-    settings = dict(settings)
-    api_key = str(settings.get("api_key") or "")
-    if not is_placeholder_secret(api_key):
-        return settings
-
-    with st.expander("Connect Groq", expanded=True):
-        st.info("Add a Groq API key here if Streamlit secrets or local .env are not configured.")
-        runtime_key = st.text_input(
-            "Groq API key",
-            type="password",
-            placeholder="gsk_...",
-            help="The key is only used for this browser session and is not displayed or committed.",
-        )
-        if runtime_key:
-            st.session_state["runtime_groq_api_key"] = runtime_key.strip()
-
-    session_key = st.session_state.get("runtime_groq_api_key", "")
-    if session_key and not is_placeholder_secret(str(session_key)):
-        settings["api_key"] = str(session_key).strip()
-    return settings
 
 
 def render_candidate_profile() -> CandidateProfile:
@@ -266,7 +241,7 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int, gr
         if groq_active:
             st.success("Generated with Groq")
         else:
-            st.info("Generated with local fallback. Add GROQ_API_KEY in Streamlit secrets or .env for Groq output.")
+            st.warning("Generated with local fallback because GROQ_API_KEY is not available in hidden settings.")
         st.text_area("Email draft", value=email, height=520)
         st.download_button(
             "Download email",
@@ -287,6 +262,10 @@ def resolve_llm(settings: dict[str, object]):
         api_key = api_key or get_secret("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
     if is_placeholder_secret(api_key):
         api_key = ""
+
+    if provider == "Groq" and not api_key:
+        st.warning("GROQ_API_KEY is missing from hidden settings. Add it to Streamlit Secrets for cloud deployment or .env for localhost.")
+        return None
 
     try:
         return create_chat_model(
