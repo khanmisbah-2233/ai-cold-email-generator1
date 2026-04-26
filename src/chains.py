@@ -67,13 +67,16 @@ def parse_job_description(raw_job_text: str, llm=None, *, source_url: str | None
         [
             (
                 "system",
-                "You extract structured hiring requirements from job posts. "
-                "Be precise, avoid guessing, and keep every list short and relevant.\n"
+                "You are a precise job-post parser for a cold-email generator. "
+                "Extract the hiring company, role title, location, seniority, required skills, "
+                "preferred skills, and responsibilities from any job description. "
+                "Do not guess missing facts. If a company or location is not present, use "
+                "'the company' or 'Not specified'. Keep lists short and relevant.\n"
                 "{format_instructions}",
             ),
             (
                 "human",
-                "Parse this job post into the requested structure:\n\n{job_text}",
+                "Parse this job post into the requested structure. Return only the requested structured output.\n\n{job_text}",
             ),
         ]
     )
@@ -102,10 +105,11 @@ def generate_cold_email(
     llm=None,
 ) -> str:
     """Generate a tailored cold email grounded in portfolio evidence."""
+    portfolio_for_prompt = _relevant_portfolio_items(job, portfolio_matches)
     if llm is None:
         return template_email(
             job=job,
-            portfolio_matches=portfolio_matches,
+            portfolio_matches=portfolio_for_prompt,
             candidate=candidate,
             tone=tone,
         )
@@ -114,19 +118,31 @@ def generate_cold_email(
         [
             (
                 "system",
-                "You write concise, professional cold emails for job applications. "
-                "Use only the supplied job summary, candidate profile, and portfolio evidence. "
-                "Do not invent employers, degrees, metrics, certifications, or project results. "
-                "Write in a human voice, avoid hype, and keep the email between 140 and 220 words. "
-                "Return a subject line followed by the email body.",
+                "You are a senior career outreach writer. Write polished, professional cold emails "
+                "for job applications across any industry or role. Use the supplied job summary, "
+                "candidate profile, and portfolio evidence. If portfolio evidence is weak or absent, "
+                "write a credible transferable-skills pitch instead of forcing unrelated projects. "
+                "Do not invent employers, degrees, metrics, certifications, project results, or personal history. "
+                "Never mention that you were given JSON, a job summary, or portfolio evidence. "
+                "Use a human, confident, concise voice. Keep the email between 140 and 220 words. "
+                "Return exactly this format:\n\n"
+                "Subject: <specific subject line>\n\n"
+                "Hi <company team or hiring team>,\n\n"
+                "<email body>\n\n"
+                "Best,\n"
+                "<candidate name>\n"
+                "<available contact details>",
             ),
             (
                 "human",
                 "Tone: {tone}\n\n"
                 "Candidate profile:\n{candidate_json}\n\n"
                 "Job summary:\n{job_json}\n\n"
-                "Relevant portfolio evidence:\n{portfolio_json}\n\n"
-                "Write the email now. Include a clear call to discuss the role.",
+                "Portfolio evidence that may be relevant:\n{portfolio_json}\n\n"
+                "Write a complete professional email for this exact job. "
+                "If the company name is missing, address it to the hiring team. "
+                "If the candidate's target title differs from the job title, prioritize the job title. "
+                "Include a clear call to discuss the role.",
             ),
         ]
     )
@@ -138,7 +154,7 @@ def generate_cold_email(
                 "candidate_json": json.dumps(candidate.model_dump(), indent=2),
                 "job_json": json.dumps(job.model_dump(), indent=2),
                 "portfolio_json": json.dumps(
-                    [item.model_dump() for item in portfolio_matches],
+                    [item.model_dump() for item in portfolio_for_prompt],
                     indent=2,
                 ),
             }

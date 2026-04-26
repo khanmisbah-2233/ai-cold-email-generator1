@@ -9,7 +9,7 @@ The LLM layer uses Groq through LangChain. The default model is `llama-3.3-70b-v
 - Accepts a pasted job description, a job-post URL, or a sample job post.
 - Uses LangChain with Groq to extract role, company, skills, responsibilities, and seniority.
 - Stores portfolio projects in ChromaDB and retrieves the most relevant evidence for each role.
-- Generates a tailored cold email with a subject line, concise pitch, and portfolio proof.
+- Uses Groq to generate a professional tailored email for any job category, with a subject line, concise pitch, and relevant proof.
 - Includes a no-key demo fallback so the UI can still be tested before adding credentials.
 
 ## Project Structure
@@ -58,6 +58,8 @@ GROQ_API_KEY=your_groq_api_key_here
 GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
+Replace `your_groq_api_key_here` with a real Groq API key. Without it, the app will run in local fallback mode and the email will be less natural than Groq output.
+
 OpenAI embeddings are optional. Without `OPENAI_API_KEY`, the app uses local hashing embeddings for ChromaDB retrieval.
 
 ## Run
@@ -80,6 +82,8 @@ In Streamlit Cloud, open **App settings**, then **Secrets**, and add:
 GROQ_API_KEY = "your_groq_api_key_here"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 ```
+
+Use your real Groq key in Streamlit secrets. Do not commit real API keys to GitHub.
 
 The app is configured with `server.headless = true` and `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
 
