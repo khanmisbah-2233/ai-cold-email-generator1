@@ -79,7 +79,7 @@ def main() -> None:
         if groq_active:
             st.write("Groq LLM connected from hidden settings")
         else:
-            st.write("Generation engine ready")
+            st.write("Groq LLM is not connected")
 
         st.write("Creating ChromaDB embedding function")
         embedding_function = resolve_embeddings(settings)
@@ -107,6 +107,11 @@ def main() -> None:
         st.write("Generating tailored email")
         email_generated_with_groq = False
         try:
+            if llm is None and settings["provider"] == "Groq":
+                status.update(label="Groq API key is not connected", state="error", expanded=True)
+                render_groq_setup_error()
+                return
+
             email = generate_cold_email(
                 job=job,
                 portfolio_matches=portfolio_matches,
@@ -116,6 +121,11 @@ def main() -> None:
             )
             email_generated_with_groq = llm is not None
         except Exception as error:
+            if llm is not None:
+                status.update(label="Groq generation failed", state="error", expanded=True)
+                render_groq_runtime_error(error)
+                return
+
             st.warning(f"LLM generation failed: {error}. Using demo email fallback.")
             email = generate_cold_email(
                 job=job,
@@ -269,6 +279,26 @@ def render_results(*, job, portfolio_matches, email: str, indexed_count: int, gr
             mime="text/plain",
             use_container_width=True,
         )
+
+
+def render_groq_setup_error() -> None:
+    st.error("Groq is not connected on Streamlit Cloud, so the app cannot generate a Groq email yet.")
+    st.info(
+        "Open Manage app -> Settings -> Secrets and add GROQ_API_KEY and GROQ_MODEL, "
+        "then save and reboot the app. The key stays hidden and is not shown in the UI."
+    )
+    st.code(
+        'GROQ_API_KEY = "your_real_groq_key_here"\n'
+        'GROQ_MODEL = "llama-3.3-70b-versatile"',
+        language="toml",
+    )
+
+
+def render_groq_runtime_error(error: Exception) -> None:
+    st.error("Groq is configured, but the Groq request failed before a professional email could be generated.")
+    st.info("Check that the Streamlit Secret key is valid, the model name is correct, and then reboot the app.")
+    with st.expander("Technical detail", expanded=False):
+        st.code(str(error))
 
 
 def resolve_llm(settings: dict[str, object]):
