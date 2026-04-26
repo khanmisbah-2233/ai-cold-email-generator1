@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 if sys.platform.startswith("linux"):
     try:

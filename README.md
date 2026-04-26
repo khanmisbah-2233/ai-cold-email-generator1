@@ -83,7 +83,7 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 The app is configured with `server.headless = true` and `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
 
-ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports.
+ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The ChromaDB/OpenTelemetry/protobuf versions are pinned in `requirements.txt` so cloud and local builds use the same compatible stack.
 
 ## Portfolio Data
 

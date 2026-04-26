@@ -4,6 +4,9 @@ import os
 import re
 from pathlib import Path
 
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import streamlit as st
 from dotenv import load_dotenv
 
