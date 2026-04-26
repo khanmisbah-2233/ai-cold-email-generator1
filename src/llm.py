@@ -12,7 +12,7 @@ def create_chat_model(
     *,
     model_name: str,
     api_key: str | None = None,
-    temperature: float = 0.35,
+    temperature: float = 0.05,
     base_url: str | None = None,
 ):
     """Create a LangChain chat model for the selected provider."""

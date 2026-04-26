@@ -56,10 +56,17 @@ TECH_SKILLS = [
 WEAK_EMAIL_PHRASES = [
     "although my background",
     "i am eager to leverage my transferable skills",
+    "transferable skills",
     "my skills can be adapted",
     "learn and apply new concepts quickly",
     "i may not have",
     "while i do not have",
+    "strong foundation",
+    "passion for developing innovative solutions",
+    "confident in my ability",
+    "my ability to learn",
+    "skills can support your team's goals",
+    "contribute to the development of solutions for applications such as",
 ]
 
 
@@ -161,7 +168,8 @@ def generate_cold_email(
                 "If portfolio evidence is adjacent rather than exact, frame it positively as related experience; "
                 "do not apologize for gaps or sound underqualified. "
                 "Never use weak phrases such as 'although my background', 'my skills can be adapted', "
-                "'I may not have', or 'learn and apply new concepts quickly'. "
+                "'I may not have', 'strong foundation', 'passion for developing innovative solutions', "
+                "'confident in my ability', or 'learn and apply new concepts quickly'. "
                 "Do not invent employers, degrees, metrics, certifications, project results, or personal history. "
                 "Never mention that you were given JSON, a job summary, or portfolio evidence. "
                 "Use specific language from the job post, but avoid copying long sentences from it. "
@@ -212,6 +220,13 @@ def generate_cold_email(
             tone=tone,
             llm=llm,
         )
+    if _needs_email_revision(email):
+        return template_email(
+            job=job,
+            portfolio_matches=portfolio_for_prompt,
+            candidate=candidate,
+            tone=tone,
+        )
     return email
 
 
@@ -233,7 +248,9 @@ def revise_email(
                 "Remove hesitant or apologetic language. Do not invent facts. "
                 "Keep the same exact format: Subject, greeting, 3 concise paragraphs, signoff, contact details. "
                 "Never use these phrases: although my background, my skills can be adapted, "
-                "I may not have, while I do not have, learn and apply new concepts quickly.",
+                "I may not have, while I do not have, transferable skills, strong foundation, "
+                "passion for developing innovative solutions, confident in my ability, "
+                "learn and apply new concepts quickly.",
             ),
             (
                 "human",
@@ -397,7 +414,10 @@ def _relevant_portfolio_items(
 
 def _needs_email_revision(email: str) -> bool:
     lowered = email.lower()
-    return any(phrase in lowered for phrase in WEAK_EMAIL_PHRASES)
+    if any(phrase in lowered for phrase in WEAK_EMAIL_PHRASES):
+        return True
+    required_markers = ["subject:", "hi ", "best,"]
+    return not all(marker in lowered for marker in required_markers)
 
 
 def _extract_role_from_text(text: str) -> str:
