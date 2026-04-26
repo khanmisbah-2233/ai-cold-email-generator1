@@ -260,7 +260,7 @@ def resolve_llm(settings: dict[str, object]):
     api_key = str(settings.get("api_key") or "")
     if provider == "Groq":
         api_key = api_key or get_secret("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
-    if api_key == "your_groq_api_key_here":
+    if is_placeholder_secret(api_key):
         api_key = ""
 
     try:
@@ -295,14 +295,36 @@ def resolve_embeddings(settings: dict[str, object]):
 
 
 def get_secret(name: str) -> str:
+    """Read secrets from Streamlit Cloud or local .streamlit/secrets.toml."""
     try:
-        return str(st.secrets.get(name, ""))
+        value = st.secrets.get(name, "")
+        if value:
+            return str(value).strip()
+
+        for section_name in ("general", "default", "secrets", "groq"):
+            section = st.secrets.get(section_name, {})
+            if hasattr(section, "get"):
+                value = section.get(name, "")
+                if value:
+                    return str(value).strip()
     except Exception:
         return ""
+    return ""
 
 
 def get_setting(name: str, default: str = "") -> str:
-    return get_secret(name) or os.getenv(name, default)
+    value = get_secret(name) or os.getenv(name, default)
+    return str(value).strip()
+
+
+def is_placeholder_secret(value: str) -> bool:
+    normalized = (value or "").strip().lower()
+    return normalized in {
+        "",
+        "your_groq_api_key_here",
+        "your_real_groq_api_key",
+        "your_real_groq_api_key_here",
+    }
 
 
 def env_flag(name: str) -> bool:

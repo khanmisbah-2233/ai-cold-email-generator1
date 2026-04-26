@@ -92,6 +92,13 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 ```
 
 Use your real Groq key in Streamlit secrets. Do not commit real API keys to GitHub.
+The app also supports this nested format if you prefer sections:
+
+```toml
+[groq]
+GROQ_API_KEY = "your_groq_api_key_here"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+```
 
 The app is configured with `server.headless = true` and `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
 
