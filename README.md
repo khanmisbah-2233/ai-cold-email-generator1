@@ -72,6 +72,17 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ```
 
+## Streamlit Cloud Deployment
+
+In Streamlit Cloud, open **App settings**, then **Secrets**, and add:
+
+```toml
+GROQ_API_KEY = "your_groq_api_key_here"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+```
+
+The app is configured with `server.headless = true` and `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
+
 ## Portfolio Data
 
 Edit `data/portfolio.csv` with your own projects, case studies, experience bullets, or portfolio links.

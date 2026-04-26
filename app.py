@@ -107,20 +107,23 @@ def main() -> None:
 def build_runtime_settings() -> dict[str, object]:
     """Load hidden runtime settings from environment variables."""
     provider = DEFAULT_LLM_PROVIDER if DEFAULT_LLM_PROVIDER in DEFAULT_MODELS else "Groq"
-    embedding_provider = os.getenv("EMBEDDING_PROVIDER", "Local hashing")
+    embedding_provider = get_setting("EMBEDDING_PROVIDER", "Local hashing")
     if embedding_provider not in {"Local hashing", "OpenAI"}:
         embedding_provider = "Local hashing"
 
     return {
         "provider": provider,
-        "model_name": DEFAULT_MODELS.get(provider, "llama-3.3-70b-versatile"),
-        "api_key": os.getenv("GROQ_API_KEY", ""),
+        "model_name": get_setting(
+            "GROQ_MODEL",
+            DEFAULT_MODELS.get(provider, "llama-3.3-70b-versatile"),
+        ),
+        "api_key": get_setting("GROQ_API_KEY", ""),
         "base_url": "",
         "embedding_provider": embedding_provider,
-        "embedding_api_key": os.getenv("OPENAI_API_KEY", ""),
-        "portfolio_csv": os.getenv("PORTFOLIO_CSV", str(PORTFOLIO_CSV)),
-        "top_k": int(os.getenv("PORTFOLIO_MATCHES", "3")),
-        "tone": os.getenv("EMAIL_TONE", "Professional"),
+        "embedding_api_key": get_setting("OPENAI_API_KEY", ""),
+        "portfolio_csv": get_setting("PORTFOLIO_CSV", str(PORTFOLIO_CSV)),
+        "top_k": int(get_setting("PORTFOLIO_MATCHES", "3")),
+        "tone": get_setting("EMAIL_TONE", "Professional"),
         "rebuild_index": env_flag("REBUILD_PORTFOLIO_INDEX"),
     }
 
@@ -286,8 +289,12 @@ def get_secret(name: str) -> str:
         return ""
 
 
+def get_setting(name: str, default: str = "") -> str:
+    return get_secret(name) or os.getenv(name, default)
+
+
 def env_flag(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+    return get_setting(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 def collection_name_for(embedding_provider: str, embedding_model: str) -> str:
