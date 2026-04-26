@@ -1,0 +1,330 @@
+from __future__ import annotations
+
+import os
+import re
+from pathlib import Path
+
+import streamlit as st
+from dotenv import load_dotenv
+
+from src.chains import generate_cold_email, parse_job_description
+from src.config import (
+    CHROMA_DIR,
+    COLLECTION_NAME,
+    DEFAULT_EMBEDDING_MODEL,
+    DEFAULT_LLM_PROVIDER,
+    DEFAULT_MODELS,
+    PORTFOLIO_CSV,
+    SAMPLE_JOB_POST,
+)
+from src.embeddings import create_embedding_function
+from src.job_loader import fetch_job_posting
+from src.llm import LLMConfigurationError, create_chat_model
+from src.models import CandidateProfile
+
+
+load_dotenv()
+
+
+def main() -> None:
+    st.set_page_config(
+        page_title="AI Cold Email Generator",
+        page_icon=":email:",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    inject_css()
+
+    st.title("AI Cold Email Generator")
+    st.caption("Personalized job-application emails powered by LangChain, ChromaDB, and Streamlit.")
+
+    settings = build_runtime_settings()
+    candidate = render_candidate_profile()
+    raw_job_text, source_url, submitted = render_job_input()
+
+    if not submitted:
+        return
+
+    if not raw_job_text.strip():
+        st.warning("Add a job description before generating an email.")
+        return
+
+    with st.status("Preparing generation workflow...", expanded=True) as status:
+        st.write("Creating LangChain chat model")
+        llm = resolve_llm(settings)
+
+        st.write("Creating ChromaDB embedding function")
+        embedding_function = resolve_embeddings(settings)
+
+        st.write("Indexing portfolio data")
+        from src.portfolio import PortfolioStore
+
+        portfolio_store = PortfolioStore(
+            csv_path=Path(settings["portfolio_csv"]),
+            persist_directory=CHROMA_DIR,
+            collection_name=collection_name_for(
+                str(settings["embedding_provider"]),
+                DEFAULT_EMBEDDING_MODEL,
+            ),
+            embedding_function=embedding_function,
+        )
+        indexed_count = portfolio_store.ensure_index(rebuild=settings["rebuild_index"])
+
+        st.write("Parsing job description")
+        job = parse_job_description(raw_job_text, llm=llm, source_url=source_url)
+
+        st.write("Retrieving portfolio matches from ChromaDB")
+        portfolio_matches = portfolio_store.search(job, k=settings["top_k"])
+
+        st.write("Generating tailored email")
+        try:
+            email = generate_cold_email(
+                job=job,
+                portfolio_matches=portfolio_matches,
+                candidate=candidate,
+                tone=settings["tone"],
+                llm=llm,
+            )
+        except Exception as error:
+            st.warning(f"LLM generation failed: {error}. Using demo email fallback.")
+            email = generate_cold_email(
+                job=job,
+                portfolio_matches=portfolio_matches,
+                candidate=candidate,
+                tone=settings["tone"],
+                llm=None,
+            )
+        status.update(label="Email generated", state="complete", expanded=False)
+
+    render_results(
+        job=job,
+        portfolio_matches=portfolio_matches,
+        email=email,
+        indexed_count=indexed_count,
+    )
+
+
+def build_runtime_settings() -> dict[str, object]:
+    """Load hidden runtime settings from environment variables."""
+    provider = DEFAULT_LLM_PROVIDER if DEFAULT_LLM_PROVIDER in DEFAULT_MODELS else "Groq"
+    embedding_provider = os.getenv("EMBEDDING_PROVIDER", "Local hashing")
+    if embedding_provider not in {"Local hashing", "OpenAI"}:
+        embedding_provider = "Local hashing"
+
+    return {
+        "provider": provider,
+        "model_name": DEFAULT_MODELS.get(provider, "llama-3.3-70b-versatile"),
+        "api_key": os.getenv("GROQ_API_KEY", ""),
+        "base_url": "",
+        "embedding_provider": embedding_provider,
+        "embedding_api_key": os.getenv("OPENAI_API_KEY", ""),
+        "portfolio_csv": os.getenv("PORTFOLIO_CSV", str(PORTFOLIO_CSV)),
+        "top_k": int(os.getenv("PORTFOLIO_MATCHES", "3")),
+        "tone": os.getenv("EMAIL_TONE", "Professional"),
+        "rebuild_index": env_flag("REBUILD_PORTFOLIO_INDEX"),
+    }
+
+
+def render_candidate_profile() -> CandidateProfile:
+    with st.expander("Candidate profile", expanded=True):
+        first, second, third = st.columns(3)
+        name = first.text_input("Name", value="Your Name")
+        target_title = second.text_input("Target title", value="Python AI Developer")
+        email = third.text_input("Email", value="")
+
+        fourth, fifth, sixth = st.columns(3)
+        phone = fourth.text_input("Phone", value="")
+        portfolio_url = fifth.text_input("Portfolio URL", value="")
+        linkedin_url = sixth.text_input("LinkedIn URL", value="")
+
+    return CandidateProfile(
+        name=name,
+        target_title=target_title,
+        email=email,
+        phone=phone,
+        portfolio_url=portfolio_url,
+        linkedin_url=linkedin_url,
+    )
+
+
+def render_job_input() -> tuple[str, str | None, bool]:
+    st.subheader("Job description")
+    source = st.radio(
+        "Source",
+        ["Paste text", "Fetch URL", "Use sample"],
+        horizontal=True,
+        label_visibility="collapsed",
+    )
+
+    with st.form("job_form"):
+        source_url = None
+        raw_job_text = ""
+
+        if source == "Paste text":
+            raw_job_text = st.text_area(
+                "Paste job description",
+                height=280,
+                placeholder="Paste the job post here...",
+            )
+        elif source == "Fetch URL":
+            source_url = st.text_input("Job post URL", placeholder="https://example.com/job-post")
+        else:
+            raw_job_text = st.text_area(
+                "Sample job description",
+                value=SAMPLE_JOB_POST,
+                height=280,
+            )
+
+        submitted = st.form_submit_button("Generate tailored email", type="primary", use_container_width=True)
+
+    if submitted and source == "Fetch URL":
+        with st.spinner("Fetching job post..."):
+            try:
+                raw_job_text = fetch_job_posting(source_url or "")
+            except Exception as error:
+                st.error(f"Could not fetch the job post: {error}")
+                return "", source_url, False
+
+    return raw_job_text, source_url, submitted
+
+
+def render_results(*, job, portfolio_matches, email: str, indexed_count: int) -> None:
+    st.divider()
+
+    metric_a, metric_b, metric_c, metric_d = st.columns(4)
+    metric_a.metric("Role", job.role)
+    metric_b.metric("Company", job.company)
+    metric_c.metric("Skills found", len(job.required_skills))
+    metric_d.metric("Portfolio indexed", indexed_count)
+
+    left, right = st.columns([0.9, 1.1], gap="large")
+
+    with left:
+        st.subheader("Parsed job")
+        st.write(f"**Location:** {job.location}")
+        st.write(f"**Experience:** {job.experience_level}")
+        if job.required_skills:
+            st.write("**Required skills:** " + ", ".join(job.required_skills))
+        if job.preferred_skills:
+            st.write("**Preferred skills:** " + ", ".join(job.preferred_skills))
+        if job.description_summary:
+            st.write(job.description_summary)
+        if job.parsing_strategy == "heuristic":
+            st.info("Job parsing used the local fallback. Select an LLM provider for richer extraction.")
+
+        st.subheader("Portfolio matches")
+        for item in portfolio_matches:
+            label = item.title
+            if item.score is not None:
+                label = f"{item.title} - distance {item.score:.3f}"
+            with st.expander(label, expanded=False):
+                st.write(item.description)
+                st.write(f"**Skills:** {item.skills}")
+                if item.outcome:
+                    st.write(f"**Outcome:** {item.outcome}")
+                if item.url:
+                    st.link_button("Open project", item.url)
+
+    with right:
+        st.subheader("Generated email")
+        st.text_area("Email draft", value=email, height=520)
+        st.download_button(
+            "Download email",
+            data=email,
+            file_name="tailored_cold_email.txt",
+            mime="text/plain",
+            use_container_width=True,
+        )
+
+
+def resolve_llm(settings: dict[str, object]):
+    provider = str(settings["provider"])
+    if provider == "Demo mode":
+        return None
+
+    api_key = str(settings.get("api_key") or "")
+    if provider == "Groq":
+        api_key = api_key or get_secret("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
+    if api_key == "your_groq_api_key_here":
+        api_key = ""
+
+    try:
+        return create_chat_model(
+            provider,
+            model_name=str(settings["model_name"]),
+            api_key=api_key,
+            base_url=str(settings.get("base_url") or ""),
+        )
+    except LLMConfigurationError as error:
+        st.warning(f"{error} Continuing in demo mode.")
+        return None
+    except Exception as error:
+        st.warning(f"Could not initialize {provider}: {error}. Continuing in demo mode.")
+        return None
+
+
+def resolve_embeddings(settings: dict[str, object]):
+    provider = str(settings["embedding_provider"])
+    api_key = str(settings.get("embedding_api_key") or "")
+    api_key = api_key or get_secret("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY", "")
+
+    try:
+        return create_embedding_function(
+            provider,
+            openai_api_key=api_key,
+            openai_model=DEFAULT_EMBEDDING_MODEL,
+        )
+    except Exception as error:
+        st.warning(f"{error} Using local hashing embeddings instead.")
+        return create_embedding_function("Local hashing")
+
+
+def get_secret(name: str) -> str:
+    try:
+        return str(st.secrets.get(name, ""))
+    except Exception:
+        return ""
+
+
+def env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def collection_name_for(embedding_provider: str, embedding_model: str) -> str:
+    suffix = embedding_provider
+    if embedding_provider == "OpenAI":
+        suffix = f"{embedding_provider}_{embedding_model}"
+    slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", suffix).strip("_").lower()
+    return f"{COLLECTION_NAME}_{slug}"[:63].rstrip("_-")
+
+
+def inject_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container {
+            padding-top: 2rem;
+            padding-bottom: 3rem;
+            max-width: 1220px;
+        }
+        [data-testid="stMetric"] {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+        }
+        [data-testid="stSidebar"],
+        [data-testid="collapsedControl"] {
+            display: none;
+        }
+        textarea {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+if __name__ == "__main__":
+    main()
