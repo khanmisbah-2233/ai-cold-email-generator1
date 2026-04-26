@@ -36,7 +36,6 @@ def main() -> None:
     inject_css()
 
     st.title("AI Cold Email Generator")
-    st.caption("Personalized job-application emails powered by LangChain, ChromaDB, and Streamlit.")
 
     settings = build_runtime_settings()
     candidate = render_candidate_profile()
