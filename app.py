@@ -105,6 +105,7 @@ def main() -> None:
         portfolio_matches = portfolio_store.search(job, k=settings["top_k"])
 
         st.write("Generating tailored email")
+        email_generated_with_groq = False
         try:
             email = generate_cold_email(
                 job=job,
@@ -113,6 +114,7 @@ def main() -> None:
                 tone=settings["tone"],
                 llm=llm,
             )
+            email_generated_with_groq = llm is not None
         except Exception as error:
             st.warning(f"LLM generation failed: {error}. Using demo email fallback.")
             email = generate_cold_email(
@@ -122,6 +124,7 @@ def main() -> None:
                 tone=settings["tone"],
                 llm=None,
             )
+            email_generated_with_groq = False
         status.update(label="Email generated", state="complete", expanded=False)
 
     render_results(
@@ -129,7 +132,7 @@ def main() -> None:
         portfolio_matches=portfolio_matches,
         email=email,
         indexed_count=indexed_count,
-        groq_active=groq_active,
+        groq_active=email_generated_with_groq,
     )
 
 

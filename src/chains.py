@@ -221,13 +221,14 @@ def generate_cold_email(
             llm=llm,
         )
     if _needs_email_revision(email):
-        return template_email(
+        email = write_final_groq_email(
             job=job,
             portfolio_matches=portfolio_for_prompt,
             candidate=candidate,
             tone=tone,
+            llm=llm,
         )
-    return email
+    return _ensure_email_structure(email, job=job, candidate=candidate)
 
 
 def revise_email(
@@ -275,6 +276,54 @@ def revise_email(
                     indent=2,
                 ),
                 "email": email,
+            }
+        )
+    )
+
+
+def write_final_groq_email(
+    *,
+    job: JobSummary,
+    portfolio_matches: list[RetrievedPortfolioItem],
+    candidate: CandidateProfile,
+    tone: str,
+    llm,
+) -> str:
+    """Create a fresh Groq email when a previous Groq draft was too generic."""
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Write a fresh, polished job-application email. This is the final version shown to a user, "
+                "so it must be professional, specific, and confident. Do not apologize for gaps. "
+                "Do not use generic motivational phrases. Do not use these exact phrases: "
+                "strong foundation, passion for developing innovative solutions, confident in my ability, "
+                "transferable skills, learn and apply new concepts quickly. "
+                "Use the candidate's actual project evidence when relevant. "
+                "Return only the email in this structure: Subject line, greeting, three short paragraphs, "
+                "Best, candidate name, contact details.",
+            ),
+            (
+                "human",
+                "Tone: {tone}\n\n"
+                "Candidate profile:\n{candidate_json}\n\n"
+                "Job summary:\n{job_json}\n\n"
+                "Portfolio evidence:\n{portfolio_json}\n\n"
+                "Write the final email now.",
+            ),
+        ]
+    )
+    chain = prompt | llm | StrOutputParser()
+    return clean_text(
+        chain.invoke(
+            {
+                "tone": tone,
+                "candidate_json": json.dumps(candidate.model_dump(), indent=2),
+                "job_json": json.dumps(job.model_dump(), indent=2),
+                "portfolio_json": json.dumps(
+                    [item.model_dump() for item in portfolio_matches],
+                    indent=2,
+                ),
             }
         )
     )
@@ -418,6 +467,33 @@ def _needs_email_revision(email: str) -> bool:
         return True
     required_markers = ["subject:", "hi ", "best,"]
     return not all(marker in lowered for marker in required_markers)
+
+
+def _ensure_email_structure(email: str, *, job: JobSummary, candidate: CandidateProfile) -> str:
+    """Add missing email wrapper pieces without replacing the Groq-written body."""
+    text = clean_text(email)
+    lowered = text.lower()
+
+    if "subject:" not in lowered:
+        text = f"Subject: Application for {job.role}\n\n{text}"
+
+    lowered = text.lower()
+    if "\nhi " not in lowered and not lowered.startswith("hi "):
+        subject_match = re.match(r"(?is)^(Subject:[^\n]+)\n*", text)
+        if subject_match:
+            text = f"{subject_match.group(1)}\n\nHi hiring team,\n\n{text[subject_match.end():].lstrip()}"
+        else:
+            text = f"Hi hiring team,\n\n{text}"
+
+    lowered = text.lower()
+    if "best," not in lowered:
+        contact_line = _contact_line(candidate)
+        signoff = f"Best,\n{candidate.name}"
+        if contact_line:
+            signoff = f"{signoff}\n{contact_line}"
+        text = f"{text.rstrip()}\n\n{signoff}"
+
+    return clean_text(text)
 
 
 def _extract_role_from_text(text: str) -> str:
