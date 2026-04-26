@@ -102,6 +102,8 @@ GROQ_MODEL = "llama-3.3-70b-versatile"
 
 The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt. Streamlit Cloud supplies its own headless runtime settings during deployment.
 
+If Streamlit secrets are not configured, the app shows a secure **Connect Groq** password field. That key is used only for the active browser session.
+
 ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The ChromaDB/OpenTelemetry/protobuf versions are pinned in `requirements.txt` so cloud and local builds use the same compatible stack.
 
 ## Portfolio Data
