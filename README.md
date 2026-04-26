@@ -74,7 +74,7 @@ Open the local URL printed by Streamlit, usually:
 http://localhost:8501
 ```
 
-The committed Streamlit config is cloud-safe and uses `server.headless = true`. For local development on Windows, run this if you want the browser to open automatically:
+The committed Streamlit config does not force `server.headless`, so local Streamlit can open your browser normally. For local development on Windows, you can also use:
 
 ```powershell
 .\run_local.ps1
@@ -100,7 +100,7 @@ GROQ_API_KEY = "your_groq_api_key_here"
 GROQ_MODEL = "llama-3.3-70b-versatile"
 ```
 
-The app is configured with `server.headless = true` and `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt.
+The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt. Streamlit Cloud supplies its own headless runtime settings during deployment.
 
 ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The ChromaDB/OpenTelemetry/protobuf versions are pinned in `requirements.txt` so cloud and local builds use the same compatible stack.
 
