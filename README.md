@@ -85,7 +85,14 @@ You can also open the app manually at `http://localhost:8501` after running `str
 
 ## Streamlit Cloud Deployment
 
-In Streamlit Cloud, open **App settings**, then **Secrets**, and add:
+Push the latest `requirements.txt` to GitHub before redeploying. In Streamlit Cloud, create the app from:
+
+- Repository: your GitHub repo
+- Branch: `main`
+- Main file path: `app.py`
+- Python version: choose `3.12` or `3.11` from **Advanced settings**
+
+In **Advanced settings** or **App settings** -> **Secrets**, add:
 
 ```toml
 GROQ_API_KEY = "your_groq_api_key_here"
@@ -110,9 +117,11 @@ The app does not display or ask for the Groq key in the UI. If no hidden key is 
 
 After saving Streamlit Cloud secrets, click **Reboot app** or **Redeploy**. Streamlit Cloud cannot read the `.env` file from your computer.
 
+If deployment previously failed while installing dependencies, open **Manage app**, click the overflow menu, and choose **Reboot** or **Clear cache and reboot** after pushing the updated requirements.
+
 The app is configured with `browser.gatherUsageStats = false` so it can run in Streamlit Cloud without the first-run prompt. Streamlit Cloud supplies its own headless runtime settings during deployment.
 
-ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The ChromaDB/OpenTelemetry/protobuf versions are pinned in `requirements.txt` so cloud and local builds use the same compatible stack.
+ChromaDB needs a recent SQLite build on Streamlit Cloud. The deployment installs `pysqlite3-binary` on Linux and swaps it in before ChromaDB imports. The requirements file keeps only direct dependencies and lets the installer resolve compatible transitive packages.
 
 ## Portfolio Data
 
