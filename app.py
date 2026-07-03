@@ -565,7 +565,7 @@ def inject_css() -> None:
             color: var(--text);
         }
         .block-container {
-            padding-top: 0.9rem;
+            padding-top: 1.35rem;
             padding-bottom: 3.5rem;
             max-width: 1280px;
         }
@@ -637,6 +637,9 @@ def inject_css() -> None:
             line-height: 1.45;
         }
         .eyebrow {
+            display: block;
+            line-height: 1.25;
+            margin-bottom: 0.3rem;
             color: var(--primary);
             font-weight: 800;
             font-size: 0.76rem;
