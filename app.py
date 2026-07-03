@@ -272,6 +272,7 @@ def render_header() -> None:
         """
         <div class="hero">
             <div>
+                <div class="hero-badge">AI Job Outreach Assistant</div>
                 <h1>Career Email Copilot</h1>
                 <p>
                     Reads the job post, retrieves your best portfolio proof from ChromaDB,
@@ -627,6 +628,21 @@ def inject_css() -> None:
             margin: 0 0 0.45rem;
             font-size: clamp(2rem, 3.2vw, 3rem);
             line-height: 1.02;
+        }
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            margin-bottom: 0.65rem;
+            padding: 0.28rem 0.65rem;
+            border: 1px solid rgba(15, 118, 110, 0.18);
+            border-radius: 999px;
+            background: var(--primary-soft);
+            color: var(--primary);
+            font-size: 0.72rem;
+            font-weight: 800;
+            line-height: 1.2;
+            text-transform: uppercase;
         }
         .hero p {
             max-width: 680px;
