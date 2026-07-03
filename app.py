@@ -95,7 +95,7 @@ def main() -> None:
             ),
             embedding_function=embedding_function,
         )
-        indexed_count = portfolio_store.ensure_index(rebuild=settings["rebuild_index"])
+        portfolio_store.ensure_index(rebuild=settings["rebuild_index"])
 
         st.write("Parsing job description")
         job = parse_job_description(raw_job_text, llm=llm, source_url=source_url)
@@ -104,7 +104,6 @@ def main() -> None:
         portfolio_matches = portfolio_store.search(job, k=settings["top_k"])
 
         st.write("Generating tailored email")
-        email_generated_with_groq = False
         try:
             if llm is None and settings["provider"] == "Groq":
                 status.update(label="Groq API key is not connected", state="error", expanded=True)
@@ -118,7 +117,6 @@ def main() -> None:
                 tone=settings["tone"],
                 llm=llm,
             )
-            email_generated_with_groq = llm is not None
         except Exception as error:
             if llm is not None:
                 status.update(label="Groq generation failed", state="error", expanded=True)
@@ -133,16 +131,9 @@ def main() -> None:
                 tone=settings["tone"],
                 llm=None,
             )
-            email_generated_with_groq = False
         status.update(label="Email generated", state="complete", expanded=False)
 
-    render_results(
-        job=job,
-        portfolio_matches=portfolio_matches,
-        email=email,
-        indexed_count=indexed_count,
-        groq_active=email_generated_with_groq,
-    )
+    render_results(email=email)
 
 
 def build_runtime_settings() -> dict[str, object]:
@@ -335,57 +326,18 @@ def render_idle_panel() -> None:
         )
 
 
-def render_results(*, job, portfolio_matches, email: str, indexed_count: int, groq_active: bool) -> None:
+def render_results(*, email: str) -> None:
     st.markdown('<div class="chat-spacer"></div>', unsafe_allow_html=True)
 
-    with st.chat_message("assistant"):
-        st.markdown("I found the core requirements and matched them against your portfolio.")
-        metric_a, metric_b, metric_c, metric_d = st.columns(4)
-        metric_a.metric("Role", job.role)
-        metric_b.metric("Company", job.company)
-        metric_c.metric("Skills found", len(job.required_skills))
-        metric_d.metric("Portfolio indexed", indexed_count)
-
-    left, right = st.columns([0.9, 1.1], gap="large")
-
-    with left:
-        with st.chat_message("assistant"):
-            st.markdown("#### Job intelligence")
-            st.write(f"**Location:** {job.location}")
-            st.write(f"**Experience:** {job.experience_level}")
-            if job.required_skills:
-                st.write("**Required skills:** " + ", ".join(job.required_skills))
-            if job.preferred_skills:
-                st.write("**Preferred skills:** " + ", ".join(job.preferred_skills))
-            if job.description_summary:
-                st.write(job.description_summary)
-
-            st.markdown("#### Portfolio evidence")
-            for item in portfolio_matches:
-                label = item.title
-                if item.score is not None:
-                    label = f"{item.title} | match distance {item.score:.3f}"
-                with st.expander(label, expanded=False):
-                    st.write(item.description)
-                    st.write(f"**Skills:** {item.skills}")
-                    if item.outcome:
-                        st.write(f"**Outcome:** {item.outcome}")
-                    if item.url:
-                        st.link_button("Open project", item.url)
-
-    with right:
-        with st.chat_message("assistant"):
-            status = "Generated with Groq" if groq_active else "Generated in demo mode"
-            st.markdown(f"#### Copy-ready email draft")
-            st.caption(status)
-            st.text_area("Email draft", value=email, height=520)
-            st.download_button(
-                "Download email",
-                data=email,
-                file_name="tailored_cold_email.txt",
-                mime="text/plain",
-                use_container_width=True,
-            )
+    st.markdown('<div class="section-label">Generated Email</div>', unsafe_allow_html=True)
+    st.text_area("Generated email", value=email, height=560, label_visibility="collapsed")
+    st.download_button(
+        "Download email",
+        data=email,
+        file_name="tailored_cold_email.txt",
+        mime="text/plain",
+        use_container_width=True,
+    )
 
 
 def render_groq_setup_error() -> None:
