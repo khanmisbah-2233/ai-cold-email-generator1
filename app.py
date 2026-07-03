@@ -272,7 +272,6 @@ def render_header() -> None:
         """
         <div class="hero">
             <div>
-                <div class="eyebrow">AI job outreach assistant</div>
                 <h1>Career Email Copilot</h1>
                 <p>
                     Reads the job post, retrieves your best portfolio proof from ChromaDB,
@@ -618,14 +617,14 @@ def inject_css() -> None:
         }
         .hero {
             margin-bottom: 1rem;
-            padding: 1.05rem 1.25rem;
+            padding: 1.35rem 1.45rem;
             border: 1px solid var(--line);
             border-radius: 12px;
             background: rgba(255, 255, 255, 0.88);
             box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
         }
         .hero h1 {
-            margin: 0.1rem 0 0.35rem;
+            margin: 0 0 0.45rem;
             font-size: clamp(2rem, 3.2vw, 3rem);
             line-height: 1.02;
         }
@@ -635,15 +634,6 @@ def inject_css() -> None:
             color: var(--muted);
             font-size: 0.98rem;
             line-height: 1.45;
-        }
-        .eyebrow {
-            display: block;
-            line-height: 1.25;
-            margin-bottom: 0.3rem;
-            color: var(--primary);
-            font-weight: 800;
-            font-size: 0.76rem;
-            text-transform: uppercase;
         }
         .section-label {
             margin: 0.85rem 0 0.55rem;
