@@ -60,7 +60,7 @@ def main() -> None:
 
     settings = build_runtime_settings()
     candidate = render_candidate_profile()
-    render_header(settings)
+    render_header()
     raw_job_text, source_url, submitted = render_job_input()
 
     if not submitted:
@@ -267,12 +267,9 @@ def render_job_input() -> tuple[str, str | None, bool]:
     return raw_job_text, source_url, submitted
 
 
-def render_header(settings: dict[str, object]) -> None:
-    provider = str(settings["provider"])
-    model_name = str(settings["model_name"])
-    embedding_provider = str(settings["embedding_provider"])
+def render_header() -> None:
     st.markdown(
-        f"""
+        """
         <div class="hero">
             <div>
                 <div class="eyebrow">AI job outreach assistant</div>
@@ -281,14 +278,6 @@ def render_header(settings: dict[str, object]) -> None:
                     Reads the job post, retrieves your best portfolio proof from ChromaDB,
                     and drafts a polished cold email.
                 </p>
-            </div>
-            <div class="hero-panel">
-                <span>LLM</span>
-                <strong>{provider}</strong>
-                <span>Model</span>
-                <strong>{model_name}</strong>
-                <span>RAG retrieval</span>
-                <strong>{embedding_provider} + ChromaDB</strong>
             </div>
         </div>
         """,
@@ -628,10 +617,6 @@ def inject_css() -> None:
             color: #a8b6ca;
         }
         .hero {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-            gap: 1rem;
-            align-items: stretch;
             margin-bottom: 1rem;
             padding: 1.05rem 1.25rem;
             border: 1px solid var(--line);
@@ -656,25 +641,6 @@ def inject_css() -> None:
             font-weight: 800;
             font-size: 0.76rem;
             text-transform: uppercase;
-        }
-        .hero-panel {
-            display: grid;
-            grid-template-columns: 0.7fr 1.3fr;
-            gap: 0.45rem 0.75rem;
-            align-content: center;
-            padding: 0.85rem 1rem;
-            border-radius: 10px;
-            background: #0f172a;
-            color: #ffffff;
-        }
-        .hero-panel span {
-            color: #9fb0c7;
-            font-size: 0.78rem;
-        }
-        .hero-panel strong {
-            color: #ffffff;
-            font-size: 0.86rem;
-            overflow-wrap: anywhere;
         }
         .section-label {
             margin: 0.85rem 0 0.55rem;
