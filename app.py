@@ -52,20 +52,20 @@ SECRET_ALIASES = {
 
 def main() -> None:
     st.set_page_config(
-        page_title="AI Cold Email Generator",
-        page_icon=":email:",
+        page_title="Career Email Copilot",
         layout="wide",
-        initial_sidebar_state="collapsed",
+        initial_sidebar_state="expanded",
     )
     inject_css()
 
-    st.title("AI Cold Email Generator")
-
     settings = build_runtime_settings()
     candidate = render_candidate_profile()
+    render_header(settings)
+    render_chat_intro(candidate)
     raw_job_text, source_url, submitted = render_job_input()
 
     if not submitted:
+        render_idle_panel()
         return
 
     if not raw_job_text.strip():
@@ -171,16 +171,34 @@ def build_runtime_settings() -> dict[str, object]:
 
 
 def render_candidate_profile() -> CandidateProfile:
-    with st.expander("Candidate profile", expanded=True):
-        first, second, third = st.columns(3)
-        name = first.text_input("Name", value="Your Name")
-        target_title = second.text_input("Target title", value="Python AI Developer")
-        email = third.text_input("Email", value="")
+    with st.sidebar:
+        st.markdown(
+            """
+            <div class="sidebar-brand">
+                <div class="brand-mark">AI</div>
+                <div>
+                    <div class="brand-title">Career Email Copilot</div>
+                    <div class="brand-subtitle">Profile and runtime settings</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        fourth, fifth, sixth = st.columns(3)
-        phone = fourth.text_input("Phone", value="")
-        portfolio_url = fifth.text_input("Portfolio URL", value="")
-        linkedin_url = sixth.text_input("LinkedIn URL", value="")
+        st.subheader("Candidate Profile")
+        name = st.text_input("Name", value="Your Name", key="profile_name")
+        target_title = st.text_input(
+            "Target title",
+            value="Python AI Developer",
+            key="profile_target_title",
+        )
+        email = st.text_input("Email", value="", key="profile_email")
+        phone = st.text_input("Phone", value="", key="profile_phone")
+        portfolio_url = st.text_input("Portfolio URL", value="", key="profile_portfolio_url")
+        linkedin_url = st.text_input("LinkedIn URL", value="", key="profile_linkedin_url")
+
+        st.divider()
+        st.caption("The assistant uses this profile to personalize the email signature and positioning.")
 
     return CandidateProfile(
         name=name,
@@ -193,34 +211,51 @@ def render_candidate_profile() -> CandidateProfile:
 
 
 def render_job_input() -> tuple[str, str | None, bool]:
-    st.subheader("Job description")
+    st.markdown('<div class="section-label">Start A New Draft</div>', unsafe_allow_html=True)
     source = st.radio(
-        "Source",
+        "Job input source",
         ["Paste text", "Fetch URL", "Use sample"],
         horizontal=True,
-        label_visibility="collapsed",
+        key="job_source",
     )
 
-    with st.form("job_form"):
+    with st.form("job_form", border=False):
         source_url = None
         raw_job_text = ""
 
         if source == "Paste text":
             raw_job_text = st.text_area(
-                "Paste job description",
-                height=280,
-                placeholder="Paste the job post here...",
+                "Message to assistant",
+                height=260,
+                key="job_text",
+                placeholder=(
+                    "Paste the job description here. The assistant will extract requirements, "
+                    "match your portfolio, and write a tailored cold email."
+                ),
             )
         elif source == "Fetch URL":
-            source_url = st.text_input("Job post URL", placeholder="https://example.com/job-post")
+            source_url = st.text_input(
+                "Public job post URL",
+                key="job_url",
+                placeholder="https://company.com/careers/software-engineer",
+            )
+            st.info(
+                "Best for public company career pages. LinkedIn often blocks automated fetching; "
+                "for LinkedIn jobs, paste the description text instead."
+            )
         else:
             raw_job_text = st.text_area(
                 "Sample job description",
                 value=SAMPLE_JOB_POST,
                 height=280,
+                key="sample_job_text",
             )
 
-        submitted = st.form_submit_button("Generate tailored email", type="primary", use_container_width=True)
+        submitted = st.form_submit_button(
+            "Generate with AI assistant",
+            type="primary",
+            use_container_width=True,
+        )
 
     if submitted and source == "Fetch URL":
         with st.spinner("Fetching job post..."):
@@ -233,52 +268,136 @@ def render_job_input() -> tuple[str, str | None, bool]:
     return raw_job_text, source_url, submitted
 
 
-def render_results(*, job, portfolio_matches, email: str, indexed_count: int, groq_active: bool) -> None:
-    st.divider()
+def render_header(settings: dict[str, object]) -> None:
+    provider = str(settings["provider"])
+    model_name = str(settings["model_name"])
+    embedding_provider = str(settings["embedding_provider"])
+    st.markdown(
+        f"""
+        <div class="hero">
+            <div>
+                <div class="eyebrow">AI job outreach assistant</div>
+                <h1>Career Email Copilot</h1>
+                <p>
+                    Chat with an AI assistant that reads a job post, retrieves your best portfolio proof
+                    from ChromaDB, and drafts a polished cold email.
+                </p>
+            </div>
+            <div class="hero-panel">
+                <span>LLM</span>
+                <strong>{provider}</strong>
+                <span>Model</span>
+                <strong>{model_name}</strong>
+                <span>Retrieval</span>
+                <strong>{embedding_provider} + ChromaDB</strong>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    metric_a, metric_b, metric_c, metric_d = st.columns(4)
-    metric_a.metric("Role", job.role)
-    metric_b.metric("Company", job.company)
-    metric_c.metric("Skills found", len(job.required_skills))
-    metric_d.metric("Portfolio indexed", indexed_count)
+
+def render_chat_intro(candidate: CandidateProfile) -> None:
+    profile_name = candidate.name.strip() or "there"
+    with st.chat_message("assistant"):
+        st.markdown(
+            f"""
+            Hi {profile_name}. I can help you turn a job post into a recruiter-ready cold email.
+
+            Send me a job description below. I will extract the role requirements, search your portfolio
+            knowledge base, and return a complete subject line plus email body.
+            """
+        )
+
+
+def render_idle_panel() -> None:
+    cols = st.columns(3)
+    with cols[0]:
+        st.markdown(
+            """
+            <div class="feature-card">
+                <span>Step 1</span>
+                <strong>Add the job post</strong>
+                <p>Paste a description, fetch a public URL, or use the sample post.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with cols[1]:
+        st.markdown(
+            """
+            <div class="feature-card">
+                <span>Step 2</span>
+                <strong>Retrieve proof</strong>
+                <p>ChromaDB matches the role against your portfolio projects.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with cols[2]:
+        st.markdown(
+            """
+            <div class="feature-card">
+                <span>Step 3</span>
+                <strong>Send a sharper email</strong>
+                <p>Groq and LangChain generate a concise, job-specific draft.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def render_results(*, job, portfolio_matches, email: str, indexed_count: int, groq_active: bool) -> None:
+    st.markdown('<div class="chat-spacer"></div>', unsafe_allow_html=True)
+
+    with st.chat_message("assistant"):
+        st.markdown("I found the core requirements and matched them against your portfolio.")
+        metric_a, metric_b, metric_c, metric_d = st.columns(4)
+        metric_a.metric("Role", job.role)
+        metric_b.metric("Company", job.company)
+        metric_c.metric("Skills found", len(job.required_skills))
+        metric_d.metric("Portfolio indexed", indexed_count)
 
     left, right = st.columns([0.9, 1.1], gap="large")
 
     with left:
-        st.subheader("Parsed job")
-        st.write(f"**Location:** {job.location}")
-        st.write(f"**Experience:** {job.experience_level}")
-        if job.required_skills:
-            st.write("**Required skills:** " + ", ".join(job.required_skills))
-        if job.preferred_skills:
-            st.write("**Preferred skills:** " + ", ".join(job.preferred_skills))
-        if job.description_summary:
-            st.write(job.description_summary)
-        st.subheader("Portfolio matches")
-        for item in portfolio_matches:
-            label = item.title
-            if item.score is not None:
-                label = f"{item.title} - distance {item.score:.3f}"
-            with st.expander(label, expanded=False):
-                st.write(item.description)
-                st.write(f"**Skills:** {item.skills}")
-                if item.outcome:
-                    st.write(f"**Outcome:** {item.outcome}")
-                if item.url:
-                    st.link_button("Open project", item.url)
+        with st.chat_message("assistant"):
+            st.markdown("#### Job intelligence")
+            st.write(f"**Location:** {job.location}")
+            st.write(f"**Experience:** {job.experience_level}")
+            if job.required_skills:
+                st.write("**Required skills:** " + ", ".join(job.required_skills))
+            if job.preferred_skills:
+                st.write("**Preferred skills:** " + ", ".join(job.preferred_skills))
+            if job.description_summary:
+                st.write(job.description_summary)
+
+            st.markdown("#### Portfolio evidence")
+            for item in portfolio_matches:
+                label = item.title
+                if item.score is not None:
+                    label = f"{item.title} | match distance {item.score:.3f}"
+                with st.expander(label, expanded=False):
+                    st.write(item.description)
+                    st.write(f"**Skills:** {item.skills}")
+                    if item.outcome:
+                        st.write(f"**Outcome:** {item.outcome}")
+                    if item.url:
+                        st.link_button("Open project", item.url)
 
     with right:
-        st.subheader("Generated email")
-        if groq_active:
-            st.success("Generated with Groq")
-        st.text_area("Email draft", value=email, height=520)
-        st.download_button(
-            "Download email",
-            data=email,
-            file_name="tailored_cold_email.txt",
-            mime="text/plain",
-            use_container_width=True,
-        )
+        with st.chat_message("assistant"):
+            status = "Generated with Groq" if groq_active else "Generated in demo mode"
+            st.markdown(f"#### Copy-ready email draft")
+            st.caption(status)
+            st.text_area("Email draft", value=email, height=520)
+            st.download_button(
+                "Download email",
+                data=email,
+                file_name="tailored_cold_email.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
 
 
 def render_groq_setup_error() -> None:
@@ -440,23 +559,214 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
+        :root {
+            --bg: #f5f7fb;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --line: #dbe3ef;
+            --text: #0f172a;
+            --muted: #64748b;
+            --primary: #0f766e;
+            --primary-dark: #0b5f59;
+            --primary-soft: #dff5f1;
+        }
+        .stApp {
+            background:
+                radial-gradient(circle at top left, rgba(15, 118, 110, 0.09), transparent 34rem),
+                linear-gradient(180deg, #f8fafc 0%, var(--bg) 100%);
+            color: var(--text);
+        }
         .block-container {
-            padding-top: 2rem;
-            padding-bottom: 3rem;
-            max-width: 1220px;
+            padding-top: 1.5rem;
+            padding-bottom: 3.5rem;
+            max-width: 1280px;
+        }
+        h1, h2, h3, h4, h5, h6, p, label {
+            letter-spacing: 0;
+        }
+        [data-testid="stSidebar"] {
+            background: #0f172a;
+            border-right: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        [data-testid="stSidebar"] * {
+            color: #e5edf7;
+        }
+        [data-testid="stSidebar"] input {
+            color: #0f172a;
+            background: #ffffff;
+            border-radius: 8px;
+        }
+        [data-testid="stSidebar"] [data-testid="stCaptionContainer"] p {
+            color: #a8b6ca;
+        }
+        .sidebar-brand {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            margin: 0.4rem 0 1.4rem;
+            padding: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.06);
+        }
+        .brand-mark {
+            display: grid;
+            place-items: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-weight: 800;
+        }
+        .brand-title {
+            font-size: 0.98rem;
+            font-weight: 800;
+            color: #ffffff;
+        }
+        .brand-subtitle {
+            font-size: 0.78rem;
+            color: #a8b6ca;
+        }
+        .hero {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+            gap: 1.4rem;
+            align-items: stretch;
+            margin-bottom: 1.4rem;
+            padding: 1.5rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+        }
+        .hero h1 {
+            margin: 0.18rem 0 0.55rem;
+            font-size: clamp(2rem, 4vw, 3.4rem);
+            line-height: 1.03;
+        }
+        .hero p {
+            max-width: 760px;
+            margin: 0;
+            color: var(--muted);
+            font-size: 1.04rem;
+            line-height: 1.6;
+        }
+        .eyebrow {
+            color: var(--primary);
+            font-weight: 800;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+        }
+        .hero-panel {
+            display: grid;
+            grid-template-columns: 0.7fr 1.3fr;
+            gap: 0.65rem 0.85rem;
+            align-content: center;
+            padding: 1rem;
+            border-radius: 10px;
+            background: #0f172a;
+            color: #ffffff;
+        }
+        .hero-panel span {
+            color: #9fb0c7;
+            font-size: 0.82rem;
+        }
+        .hero-panel strong {
+            color: #ffffff;
+            font-size: 0.92rem;
+            overflow-wrap: anywhere;
+        }
+        .section-label {
+            margin: 1.2rem 0 0.7rem;
+            color: var(--primary);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
         }
         [data-testid="stMetric"] {
             background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
         }
-        [data-testid="stSidebar"],
-        [data-testid="collapsedControl"] {
-            display: none;
+        [data-testid="stMetricValue"] {
+            font-size: 1.85rem;
+            color: var(--text);
+        }
+        [data-testid="stChatMessage"] {
+            background: rgba(255, 255, 255, 0.92);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 0.95rem 1.05rem;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+        }
+        [data-testid="stChatMessage"] [data-testid="chatAvatarIcon-assistant"] {
+            background: var(--primary);
+        }
+        .feature-card {
+            min-height: 130px;
+            padding: 1rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+        }
+        .feature-card span {
+            color: var(--primary);
+            font-size: 0.78rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .feature-card strong {
+            display: block;
+            margin-top: 0.35rem;
+            font-size: 1.05rem;
+        }
+        .feature-card p {
+            margin: 0.45rem 0 0;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .chat-spacer {
+            height: 1rem;
+            border-top: 1px solid var(--line);
+            margin-top: 1.2rem;
         }
         textarea {
             font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            border-radius: 10px !important;
+        }
+        div.stButton > button,
+        div.stDownloadButton > button,
+        div[data-testid="stFormSubmitButton"] button {
+            border-radius: 10px;
+            border: 1px solid var(--primary);
+            background: var(--primary);
+            color: white;
+            font-weight: 800;
+        }
+        div.stButton > button:hover,
+        div.stDownloadButton > button:hover,
+        div[data-testid="stFormSubmitButton"] button:hover {
+            border-color: var(--primary-dark);
+            background: var(--primary-dark);
+            color: white;
+        }
+        [data-testid="stExpander"] {
+            border-radius: 10px;
+            border-color: var(--line);
+            background: rgba(255, 255, 255, 0.8);
+        }
+        @media (max-width: 900px) {
+            .hero {
+                grid-template-columns: 1fr;
+                padding: 1.1rem;
+            }
+            .hero h1 {
+                font-size: 2.2rem;
+            }
         }
         </style>
         """,
