@@ -61,7 +61,6 @@ def main() -> None:
     settings = build_runtime_settings()
     candidate = render_candidate_profile()
     render_header(settings)
-    render_chat_intro(candidate)
     raw_job_text, source_url, submitted = render_job_input()
 
     if not submitted:
