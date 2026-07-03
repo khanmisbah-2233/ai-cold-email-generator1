@@ -278,8 +278,8 @@ def render_header(settings: dict[str, object]) -> None:
                 <div class="eyebrow">AI job outreach assistant</div>
                 <h1>Career Email Copilot</h1>
                 <p>
-                    Chat with an AI assistant that reads a job post, retrieves your best portfolio proof
-                    from ChromaDB, and drafts a polished cold email.
+                    Reads the job post, retrieves your best portfolio proof from ChromaDB,
+                    and drafts a polished cold email.
                 </p>
             </div>
             <div class="hero-panel">
@@ -287,7 +287,7 @@ def render_header(settings: dict[str, object]) -> None:
                 <strong>{provider}</strong>
                 <span>Model</span>
                 <strong>{model_name}</strong>
-                <span>Retrieval</span>
+                <span>RAG retrieval</span>
                 <strong>{embedding_provider} + ChromaDB</strong>
             </div>
         </div>
@@ -576,7 +576,7 @@ def inject_css() -> None:
             color: var(--text);
         }
         .block-container {
-            padding-top: 1.5rem;
+            padding-top: 0.9rem;
             padding-bottom: 3.5rem;
             max-width: 1280px;
         }
@@ -629,27 +629,27 @@ def inject_css() -> None:
         }
         .hero {
             display: grid;
-            grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
-            gap: 1.4rem;
+            grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+            gap: 1rem;
             align-items: stretch;
-            margin-bottom: 1.4rem;
-            padding: 1.5rem;
+            margin-bottom: 1rem;
+            padding: 1.05rem 1.25rem;
             border: 1px solid var(--line);
             border-radius: 12px;
             background: rgba(255, 255, 255, 0.88);
             box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
         }
         .hero h1 {
-            margin: 0.18rem 0 0.55rem;
-            font-size: clamp(2rem, 4vw, 3.4rem);
-            line-height: 1.03;
+            margin: 0.1rem 0 0.35rem;
+            font-size: clamp(2rem, 3.2vw, 3rem);
+            line-height: 1.02;
         }
         .hero p {
-            max-width: 760px;
+            max-width: 680px;
             margin: 0;
             color: var(--muted);
-            font-size: 1.04rem;
-            line-height: 1.6;
+            font-size: 0.98rem;
+            line-height: 1.45;
         }
         .eyebrow {
             color: var(--primary);
@@ -660,24 +660,24 @@ def inject_css() -> None:
         .hero-panel {
             display: grid;
             grid-template-columns: 0.7fr 1.3fr;
-            gap: 0.65rem 0.85rem;
+            gap: 0.45rem 0.75rem;
             align-content: center;
-            padding: 1rem;
+            padding: 0.85rem 1rem;
             border-radius: 10px;
             background: #0f172a;
             color: #ffffff;
         }
         .hero-panel span {
             color: #9fb0c7;
-            font-size: 0.82rem;
+            font-size: 0.78rem;
         }
         .hero-panel strong {
             color: #ffffff;
-            font-size: 0.92rem;
+            font-size: 0.86rem;
             overflow-wrap: anywhere;
         }
         .section-label {
-            margin: 1.2rem 0 0.7rem;
+            margin: 0.85rem 0 0.55rem;
             color: var(--primary);
             font-size: 0.78rem;
             font-weight: 800;
